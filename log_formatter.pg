@@ -1,0 +1,70 @@
+LogFormat:
+    Body
+    | Declarations Body
+;
+
+Declarations:
+    Declaration
+    | Declarations Declaration
+;
+
+Body:
+    Element
+    | Body Element
+;
+
+Declaration:
+    Decl SEMICOLON
+;
+
+Decl:
+    ID ASSIGN RHSDecl
+;
+
+RHSDecl:
+    DataType
+    | DataType LPAREN REGEX RPAREN
+;
+
+DataType:
+    INT
+    | DOUBLE
+    | STRING
+    | DATETIME
+;
+
+Element:
+    LT Content GT
+;
+
+Content:
+    ID
+    | Decl
+    | REGEX
+;
+
+terminals
+ID: /\w+/;
+ASSIGN: ':=' ;
+LPAREN: '(' ;
+RPAREN: ')' ;
+REGEX: /\/((\\\/)|[^\/])*\// ;
+LT: '<' ;
+GT: '>' ;
+KEYWORD: /\w+/;
+INT: 'int';
+DOUBLE: 'double';
+STRING: 'string';
+DATETIME: 'datetime';
+SEMICOLON: ';';
+
+/*
+INT:
+    /(\+|-)?\d+/
+;
+
+DOUBLE:
+    /(\+|-)?((\d*\.\d+)|(\d+(\.\d*)?))/
+;
+*/
+
