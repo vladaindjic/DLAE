@@ -1,9 +1,10 @@
-from parglare import Grammar, Parser
-from collections import OrderedDict
-import dateutil.parser as date_parser
-import re
 import datetime
-from utils_functions import get_local_timezone
+import re
+
+from parglare import Grammar, Parser
+
+from log_formatter import build_log_parser, IntDeclaration, DoubleDeclaration, StringDeclaration, \
+    DateTimeDeclaration
 
 
 # u akcijama je potrebno proveriti postojanje atributa
@@ -19,6 +20,14 @@ class IRObject:
     def python_condition(self):
         return ""
 
+    def semantic_analysis(self, log_parser):
+        """
+            We need a log parser in order to do semantic analysis
+        :param log_parser:
+        :return:
+        """
+        pass
+
 
 class AlarmQuery(IRObject):
     def __init__(self, query):
@@ -29,6 +38,9 @@ class AlarmQuery(IRObject):
 
     def python_condition(self):
         return self.query.python_condition()
+
+    def semantic_analysis(self, log_parser):
+        self.query.semantic_analysis(log_parser)
 
 
 class Not(IRObject):
@@ -41,11 +53,15 @@ class Not(IRObject):
     def inv(self):
         return self.term.inv()
 
+    # FIXME: check if this is ok
     def remove_not(self):
         return self.inv()
 
     def python_condition(self):
         return "(not %s)" % self.term.python_condition()
+
+    def semantic_analysis(self, log_parser):
+        self.term.semantic_analysis(log_parser)
 
 
 class And(IRObject):
@@ -67,6 +83,10 @@ class And(IRObject):
     def python_condition(self):
         return "(%s and %s)" % (self.left.python_condition(), self.right.python_condition())
 
+    def semantic_analysis(self, log_parser):
+        self.left.semantic_analysis(log_parser)
+        self.right.semantic_analysis(log_parser)
+
 
 class Or(IRObject):
     def __init__(self, left, right):
@@ -86,6 +106,10 @@ class Or(IRObject):
 
     def python_condition(self):
         return "(%s or %s)" % (self.left.python_condition(), self.right.python_condition())
+
+    def semantic_analysis(self, log_parser):
+        self.left.semantic_analysis(log_parser)
+        self.right.semantic_analysis(log_parser)
 
 
 class AtomicExpr(IRObject):
@@ -115,6 +139,38 @@ class RelExpr(AtomicExpr):
         return "%s %s %s" % (self.property.python_condition(),
                              self.python_rel_op(),
                              self.value.python_condition())
+
+    def semantic_analysis(self, log_parser):
+        property_name = self.property.name
+        if property_name not in log_parser.declarations:
+            raise AttributeError("Log does not have property with name: %s" % property_name)
+        log_property = log_parser.declarations[property_name]
+        # Check if type of log_property is the same as type of value of RelExpr
+        # log_property is subclass of Declaration.
+        # value if subclass of Value
+        if isinstance(log_property, IntDeclaration):
+            # make implicit cast
+            if isinstance(self.value, DoubleValue):
+                # this will cast to integer, and then convert to string
+                self.value = IntValue(str(int(self.value.value)))
+                return
+            if not isinstance(self.value, IntValue):
+                raise TypeError("%s is defined as integer." % property_name)
+        elif isinstance(log_property, DoubleDeclaration):
+            # make implicit cast
+            if isinstance(self.value, IntValue):
+                self.value = DoubleValue(str(float(self.value.value)))
+                return
+            if not isinstance(self.value, DoubleValue):
+                raise TypeError("%s is defined as double." % property_name)
+        elif isinstance(log_property, StringDeclaration):
+            if not isinstance(self.value, StringValue):
+                raise TypeError("%s is defined as string." % property_name)
+        elif isinstance(log_property, DateTimeDeclaration):
+            if not isinstance(self.value, DatetimeValue):
+                raise TypeError("%s is defined as datetime." % property_name)
+        else:
+            raise TypeError("Wrong type of log property: %s" % property_name)
 
 
 # FIXME: see if this is needed at all
@@ -158,6 +214,9 @@ class RegExpr(AtomicExpr):
             raise TypeError("RelExpr in RegExpr can only be Eq or Ne")
 
         return "( " + output + " )"
+
+    def semantic_analysis(self, log_parser):
+        self.rel_expr.semantic_analysis(log_parser)
 
 
 class TimestampExpr(AtomicExpr):
@@ -286,10 +345,22 @@ class IntValue(Value):
     def __init__(self, value):
         super().__init__(value)
 
+    # def __str__(self):
+    #     return "%d" % int(self.value)
+    #
+    # def python_condition(self):
+    #     return "%d" % int(self.value)
+
 
 class DoubleValue(Value):
     def __init__(self, value):
         super().__init__(value)
+
+    # def __str__(self):
+    #     return "%f" % float(self.value)
+    #
+    # def python_condition(self):
+    #     return "%f" % float(self.value)
 
 
 class StringValue(Value):
@@ -353,7 +424,7 @@ from utils_functions import YearInterval, MonthInterval, DayInterval, HourInterv
     DateTimeInterval
 
 actions = {
-    "AlarmQuery": lambda _, nodes: nodes[0],
+    "AlarmQuery": lambda _, nodes: AlarmQuery(nodes[0]),
     # Query:
     #     Expr
     #     | Query or_op Expr;;
@@ -419,38 +490,107 @@ actions = {
         SecondInterval("%s" % (re.sub("\s+", "T", value)))),
 }
 
-if __name__ == '__main__':
+
+def compile_alarm_python_condition(alarm_str, log_format):
     g = Grammar.from_file('alarm_language.pg')
     # no actions for now
     p = Parser(g, actions=actions)
 
-    # res = p.parse("ceca@#1234# or mica==1231 and ceca>#1234-12# and not mica>=-123. or celka==-0.123")
-    # res = p.parse("not (micko > -.123 or not cele==/.*/) and mile@#2014#")
-    # print("Original: %s" % res)
-    # res.remove_not()
-    # print("De Morganovi zakoni: %s" % res)
+    res = p.parse(alarm_str)
+    # print(res)
+    res.remove_not()
+    res.semantic_analysis(build_log_parser(log_format))
+    res = res.python_condition()
+    return res
 
-    # res = p.parse("ceca==123 and (mica==321 or nica==123)")
+
+def front_end_alarm_compiler(alarm_str, log_format):
+    """
+        This function represents front-end of alarm compiler. It does:
+            - syntax analysis
+            - semantic analysis
+            - generate IR
+            - optimizing IR
+    :param alarm_str:
+    :param log_format:
+    :return: object of AlarmQuery class
+    """
+    g = Grammar.from_file('alarm_language.pg')
+    # no actions for now
+    p = Parser(g, actions=actions)
+
+    res = p.parse(alarm_str)
     # print(res)
+    res.remove_not()
+    res.semantic_analysis(build_log_parser(log_format))
+    return res
+
+
+def test_integration():
+    log_format = """
+        severity:=int; 
+        facility:=int; 
+        message:=string;
+        timestamp:=datetime(/\d{2}\.\d{2}\.\d{4}\.\s+\d{2}\:\d{2}\:\d{2}/);
+        scaling:=double;
+
+        <timestamp> </\s*,\s*/> <severity> </\s*,\s*/> <facility> </\s*,\s*/> <scaling> </\s*,\s*/> <message> 
+        """
+    log_str = '20.02.1995. 20:45:00, 3, 1, 1.5, "Ovo je moja pozdravna poruka, Vladimire"'
+    alarm_str = "scaling > 2 or severity<5 and facility >=0"
+
+    log_format = """
+        brojka:=int;
+        </</> <brojka> </>/> </.*/>
+    """
+    log_str = '<11>1 2019-04-08T01:08:12+02:00 12.12.12.1 FakeWebApp - msg77 - from:192.52.223.99 "GET /recipe HTTP/1.0" 200 4923 "Mozilla/5.0 (Macintosh; U; PPC Mac OS X 10_12_6) AppleWebKit/5361 (KHTML, like Gecko) Chrome/53.0.892.0 Safari/5361 "'
+    alarm_str = 'brojka == 11'
+
+    lp = build_log_parser(log_format)
+    l = lp.parse_log(log_str)
+    print(l)
+
+    py_cond = compile_alarm_python_condition(alarm_str, log_format)
+    print(py_cond)
+    print(eval(py_cond))
+    pass
+
+
+if __name__ == '__main__':
+    # g = Grammar.from_file('alarm_language.pg')
+    # # no actions for now
+    # p = Parser(g, actions=actions)
     #
-    # # res = p.parse("ceca==/123/ and not (mica!=/123/ or nica==/1\"\.23/)")
-    # res = p.parse("ceca > #2014# and mile @ #2015# ")
-    # print(res)
-    # res = res.remove_not()
-    # print(res)
+    # # res = p.parse("ceca@#1234# or mica==1231 and ceca>#1234-12# and not mica>=-123. or celka==-0.123")
+    # # res = p.parse("not (micko > -.123 or not cele==/.*/) and mile@#2014#")
+    # # print("Original: %s" % res)
+    # # res.remove_not()
+    # # print("De Morganovi zakoni: %s" % res)
+    #
+    # # res = p.parse("ceca==123 and (mica==321 or nica==123)")
+    # # print(res)
+    # #
+    # # # res = p.parse("ceca==/123/ and not (mica!=/123/ or nica==/1\"\.23/)")
+    # # res = p.parse("ceca > #2014# and mile @ #2015# ")
+    # # print(res)
+    # # res = res.remove_not()
+    # # print(res)
+    # # res = res.python_condition()
+    # # print(res)
+    #
+    # from collections import namedtuple
+    #
+    # Log = namedtuple("Log", ["severity", "timestamp", "name", "message"])
+    # l = Log(severity=10, timestamp=date_parser.parse("05.06.2014"), name="majka", message="moja")
+    #
+    # # res = p.parse("severity > 7 and timestamp@#2014# or name==/m.*e/")
+    #
+    # res = p.parse("a > 7.123 and b==123 or p>3.0")
+    # # print(res)
+    # res.remove_not()
+    # res.semantic_analysis(build_log_parser(primer))
     # res = res.python_condition()
     # print(res)
+    # # print(eval(res))
 
-    from collections import namedtuple
-
-    Log = namedtuple("Log", ["severity", "timestamp", "name", "message"])
-    l = Log(severity=10, timestamp=date_parser.parse("05.06.2014"), name="majka", message="moja")
-
-    # res = p.parse("severity > 7 and timestamp@#2014# or name==/m.*e/")
-
-    res = p.parse("severity > 7 and timestamp@#2014# and not name!=/m.*a$/")
-    print(res)
-    res.remove_not()
-    res = res.python_condition()
-    print(res)
-    print(eval(res))
+    test_integration()

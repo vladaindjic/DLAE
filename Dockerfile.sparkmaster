@@ -1,0 +1,18 @@
+FROM bde2020/spark-master:2.4.0-hadoop2.7
+
+MAINTAINER Vladimr Indjic <vladaindjic@uns.ac.rs>
+
+RUN apt-get update && apt-get install -qq -y \
+  build-essential libpq-dev --no-install-recommends
+
+RUN apt-get install vim -y
+
+# install libraries for python
+
+RUN curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
+RUN python get-pip.py
+RUN rm get-pip.py
+RUN pip install requests
+RUN pip install requests_oauthlib
+RUN pip install parglare
+RUN pip install textX

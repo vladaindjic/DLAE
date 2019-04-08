@@ -17,10 +17,13 @@ DATE_TIME_TYPE = "DATE_TIME"
 class Log:
     pass
 
+    def __str__(self):
+        return str(self.__dict__)
+
 
 class LogParser:
     def __init__(self, declarations, elements):
-        self._declarations = declarations
+        self.declarations = declarations
         self._elements = elements
 
     def parse_log(self, text):
@@ -31,7 +34,7 @@ class LogParser:
                 matched, unmatched = self._match_regex(el.content, unmatched, text)
             else:
                 if isinstance(el.content, Identifier):
-                    declaration = self._declarations[el.content.id]
+                    declaration = self.declarations[el.content.id]
                 elif isinstance(el.content, Declaration):
                     declaration = el.content
                 else:
@@ -170,7 +173,10 @@ class Declarations:
         return self
 
     def __iter__(self):
+        # this could work in python 3
         return (yield from self.declarations)
+        # for i in self.declarations:
+        #     yield i
 
 
 class Body:
@@ -183,7 +189,10 @@ class Body:
         return self
 
     def __iter__(self):
+        # this could work in python 3
         return (yield from self.elements)
+        # for i in self.elements:
+        #     yield i
 
 
 class Element:
@@ -311,9 +320,9 @@ primer = """
     a:=double; 
     b:=double;
     c:=datetime(/\d{2}\.\d{2}\.\d{4}/);
-    <a> </,\s+/> <b> </,\s+/> <c> </;\s+/> <p>
+    <a> </,\s+/> <b> </,\s+/> <c> </;\s+/> <p> </\s+/> <m:=int>
     """
-log = '3.1, -3.5, 13.03.1905;   3000'
+log = '3.1, -3.5, 13.03.1905;   3000 100'
 
 
 # primer = '''
@@ -321,17 +330,23 @@ log = '3.1, -3.5, 13.03.1905;   3000'
 # '''
 # log = ",   asd  "
 
-
-def main():
+def build_log_parser(log_format_definition):
     g = Grammar.from_file('log_formatter.pg')
     p = Parser(g, actions=actions)
-    lf = p.parse(primer)
+    lf = p.parse(log_format_definition)
     lp = lf.semantic_analysis()
+    return lp
+
+
+def main():
+    lp = build_log_parser(primer)
     l = lp.parse_log(log)
     print(l.a)
     print(l.b)
     print(l.c)
     print(l.p)
+    print(l.m)
+
 
 if __name__ == '__main__':
     main()

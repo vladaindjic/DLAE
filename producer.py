@@ -4,6 +4,7 @@ from kafka import KafkaProducer
 
 MAX_MESSAGE_SIZE = 4096
 PORT = 50000
+TOPIC_NAME = "logs"
 
 
 def main():
@@ -25,7 +26,7 @@ def main():
             break
         data_str = data.decode('utf-8')
         print(data_str)
-        producer.send('test', value=data_str)
+        producer.send(TOPIC_NAME, value=data_str)
     conn.close()
     s.close()
 

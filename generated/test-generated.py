@@ -10,8 +10,10 @@ from log_formatter import build_log_parser
 
 log_format = """
 
+        
         brojka:=int;
         </</> <brojka> </>/> </.*/>
+    
 
     """
 log_parser = build_log_parser(log_format)
@@ -35,7 +37,7 @@ if __name__ == "__main__":
     logs = lines.map(lambda log_line: log_parser.parse_log(log_line.strip()))
     filtered_logs = logs.filter(lambda l:
 
-                                l.brojka == 11 or l.brojka == 13
+                                (l.brojka == 11 or l.brojka == 13)
 
                                 )
     filtered_logs.foreachRDD(process_rdd)
