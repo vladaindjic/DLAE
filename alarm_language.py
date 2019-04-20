@@ -2,7 +2,7 @@ import datetime
 import re
 
 from parglare import Grammar, Parser
-
+from collections import OrderedDict
 from log_formatter import build_log_parser, IntDeclaration, DoubleDeclaration, StringDeclaration, \
     DateTimeDeclaration
 
@@ -30,8 +30,10 @@ class IRObject:
 
 
 class AlarmQuery(IRObject):
-    def __init__(self, query):
+    def __init__(self, query, header=None):
         self.query = query
+        print("Mamu li ti jebem ja: %s" % header)
+        self.header = header
 
     def remove_not(self):
         self.query = self.query.remove_not()
@@ -41,6 +43,11 @@ class AlarmQuery(IRObject):
 
     def semantic_analysis(self, log_parser):
         self.query.semantic_analysis(log_parser)
+        if self.header is not None:
+            self.header.semantic_analysis(log_parser)
+
+    def __str__(self):
+        return "Query: %s; Header: %s" % (self.query, self.header)
 
 
 class Not(IRObject):
@@ -420,11 +427,67 @@ class TimeOffset(Value):
         super().__init__(value)
 
 
+class Header(IRObject):
+    def __init__(self, first_expr=None):
+        self.header_expressions = []
+        if first_expr is not None:
+            self.add_header_expression(first_expr)
+
+    def add_header_expression(self, expr):
+        self.header_expressions.append(expr)
+        return self
+
+    def semantic_analysis(self, log_parser):
+        expr_dict = {}
+        for expr in self.header_expressions:
+            # each header expr can appear only once in header
+            if expr.get_type() in expr_dict:
+                raise AttributeError("%s appears multiple times in header." % expr.get_type())
+            expr.semantic_analysis(log_parser)
+            expr_dict[expr.get_type()] = expr
+
+    def __str__(self):
+        out_str = ""
+        for expr in self.header_expressions:
+            out_str += str(expr) + ", "
+        if out_str:
+            out_str = out_str[:-2]
+        return out_str
+
+
+class HeaderExpr(IRObject):
+    def get_type(self):
+        return ""
+
+
+class CountExpr(HeaderExpr):
+    def __init__(self, count):
+        self.count = count
+
+    def __str__(self):
+        return "count(%s)" % self.count
+
+    def get_type(self):
+        return 'COUNT'
+
+    def semantic_analysis(self, log_parser):
+        if self.count.value > 0 and isinstance(self.count, IntValue):
+            return
+        raise ValueError("Count must be positive integer")
+
+
 from utils_functions import YearInterval, MonthInterval, DayInterval, HourInterval, MinuteInterval, SecondInterval, \
     DateTimeInterval
 
 actions = {
-    "AlarmQuery": lambda _, nodes: AlarmQuery(nodes[0]),
+    # AlarmQuery:
+    #     Query
+    #     | Query SEMICOLON Header
+    # ;
+    "AlarmQuery": [
+        lambda _, nodes: AlarmQuery(nodes[0]),
+        lambda _, nodes: AlarmQuery(nodes[0], nodes[2]),
+    ],
     # Query:
     #     Expr
     #     | Query or_op Expr;;
@@ -464,6 +527,23 @@ actions = {
         Gte(nodes[0], DatetimeValue(nodes[2]["start_time"])),
         Lt(nodes[0], DatetimeValue(nodes[2]["end_time"]))
     ),
+    # Header:
+    #     HeaderExpr
+    #     | Header COMMA HeaderExpr
+    # ;
+    "Header": [
+        lambda _, nodes: Header(nodes[0]),
+        lambda _, nodes: nodes[0].add_header_expression(nodes[2]),
+    ],
+    # HeaderExpr:
+    #     CountExpr
+    # ;
+    "HeaderExpr": lambda _, nodes: nodes[0],
+    # CountExpr:
+    #     COUNT LPAREN INT RPAREN
+    # ;
+    "CountExpr": lambda _, nodes: CountExpr(nodes[2]),
+
     # terminals
     "Property": lambda _, nodes: Property(nodes[0]),
     # HASH DatetimeValue HASH
@@ -517,7 +597,7 @@ def front_end_alarm_compiler(alarm_str, log_format):
     """
     g = Grammar.from_file('alarm_language.pg')
     # no actions for now
-    p = Parser(g, actions=actions)
+    p = Parser(g, actions=actions, debug=False)
 
     res = p.parse(alarm_str)
     # print(res)
@@ -544,15 +624,18 @@ def test_integration():
         </</> <brojka> </>/> </.*/>
     """
     log_str = '<11>1 2019-04-08T01:08:12+02:00 12.12.12.1 FakeWebApp - msg77 - from:192.52.223.99 "GET /recipe HTTP/1.0" 200 4923 "Mozilla/5.0 (Macintosh; U; PPC Mac OS X 10_12_6) AppleWebKit/5361 (KHTML, like Gecko) Chrome/53.0.892.0 Safari/5361 "'
-    alarm_str = 'brojka == 11'
+    alarm_str = 'brojka == 11 or brojka > 12; count(10)'
 
     lp = build_log_parser(log_format)
     l = lp.parse_log(log_str)
     print(l)
 
-    py_cond = compile_alarm_python_condition(alarm_str, log_format)
-    print(py_cond)
-    print(eval(py_cond))
+    res = front_end_alarm_compiler(alarm_str, log_format)
+    print(res)
+
+    # py_cond = compile_alarm_python_condition(alarm_str, log_format)
+    # print(py_cond)
+    # print(eval(py_cond))
     pass
 
 

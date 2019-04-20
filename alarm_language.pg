@@ -1,11 +1,7 @@
 AlarmQuery:
     Query
-    //| Query SEMICOLON CountExpr
+    | Query SEMICOLON Header
 ;
-
-//CountExpr:
-//    COUNT LPAREN INT RPAREN
-//;
 
 Query:
     Expr
@@ -55,9 +51,22 @@ AtExpr:
 //    Property last_op TIME_OFFSET
 //;
 
-Property:
-    KEYWORD
+Property: KEYWORD;
+
+
+Header:
+    HeaderExpr
+    | Header COMMA HeaderExpr
 ;
+
+HeaderExpr:
+    CountExpr
+;
+
+CountExpr:
+    COUNT LPAREN INT RPAREN
+;
+
 
 RelValue:
     INT
@@ -151,10 +160,6 @@ YEAR_MONTH_DAY_HOUR_MINUTE_SECOND:
 //    /(\d+(y|Y)(\s+)?)?(\d+M(\s+)?)?(\d+(d|D)(\s+)?)?(\d+(h|H)(\s+)?)?(\d+m(\s+)?)?(\d+(s|S))?/
 //;
 
-SEMICOLON:
-    ';'
-;
-
-//COUNT:
-//    'count'
-//;
+SEMICOLON: ';';
+COMMA: ',';
+COUNT: 'count';

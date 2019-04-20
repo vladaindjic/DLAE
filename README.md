@@ -11,7 +11,7 @@ rm get-pip.py
 pip3 install requests
 pip3 install requests_oauthlib
 pip3 install parglare
-pip3 install dateutil
+pip3 install dateutil (ili pip3 install python-dateutil)
 
 # ################# kafka
 
