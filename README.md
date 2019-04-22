@@ -2,7 +2,6 @@
 ```shell
 # ################spark-master>
 
-export PYSPARK_PYTHON=python3
 
 apt install python3
 curl https://bootstrap.pypa.io/get-pip.py -o get-pip.py
@@ -11,8 +10,10 @@ rm get-pip.py
 pip3 install requests
 pip3 install requests_oauthlib
 pip3 install parglare
-pip3 install dateutil (ili pip3 install python-dateutil)
+pip3 install python-dateutil
+export PYSPARK_PYTHON=python3
 
+#pip3 install dateutil 
 # ################# kafka
 
 # create topic logs
@@ -38,4 +39,7 @@ kafka-console-consumer.sh --bootstrap-server localhost:9092 --topic logs --from-
 # run spark consumer
 $SPARK_HOME/bin/spark-submit --packages org.apache.spark:spark-streaming-kafka-0-8_2.11:2.4.0 spark-direct.py kafka:9092 logs
 
+
+# Maybe we should consider how to use dataframes in streaming.
+# If we do that, than watermarking could be apply, so we don't lose data that comes lately.
 ```

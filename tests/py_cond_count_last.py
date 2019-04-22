@@ -10,34 +10,19 @@ from log_formatter import build_log_parser
 
 log_format = """
 
-        
         brojka:=int;
         </</> <brojka> </>/> </.*/>
-    
 
     """
 log_parser = build_log_parser(log_format)
 
 
-def update_function(new_values, current):
-    if current is None:
-        current = []
-    if len(current) >= 10:
-        current.clear()
-    current.extend(new_values)
-    return current
-
-
-def process_rdd_element(time, rdd_element):
-    # check if we have more then specified number of logs
-    log_lists = rdd_element[1]
-    if len(log_lists) >= 10:
-        print("Alarm fired at {0} by these {1} logs: {2}".format(time, len(log_lists), log_lists))
-
-
 def process_rdd(time, rdd):
+    print("SISI KARINUUUUUUUUUUUUUUUUUUUUUUUU %s" % rdd.count())
     # we could send message to server to store this specific log
-    rdd.foreach(lambda el: process_rdd_element(time, el))
+    if rdd.count() >= 11:
+        log_list = rdd.collect()
+        print("Alarm fired at {0} by these {1} logs: {2}".format(time, len(log_list), log_list))
 
 
 if __name__ == "__main__":
@@ -53,13 +38,11 @@ if __name__ == "__main__":
     logs = lines.map(lambda log_line: log_parser.parse_log(log_line.strip()))
     filtered_logs = logs.filter(lambda l:
 
-                                (l.brojka == 11 or l.brojka == 13)
+                                l.brojka == 11 or l.brojka == 13
 
                                 )
-
-    pairs = filtered_logs.map(lambda l: ('l', l))
-    aggregated = pairs.updateStateByKey(update_function)
-    aggregated.foreachRDD(process_rdd)
+    window_logs = logs.window(10, 1)
+    window_logs.foreachRDD(process_rdd)
 
     # start the streaming computation
     ssc.start()

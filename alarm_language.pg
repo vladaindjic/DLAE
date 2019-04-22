@@ -61,12 +61,16 @@ Header:
 
 HeaderExpr:
     CountExpr
+    | LastExpr
 ;
 
 CountExpr:
     COUNT LPAREN INT RPAREN
 ;
 
+LastExpr:
+    LAST LPAREN TIME_OFFSET RPAREN
+;
 
 RelValue:
     INT
@@ -156,10 +160,11 @@ YEAR_MONTH_DAY_HOUR_MINUTE_SECOND:
     /\d{4}\-\d{2}\-\d{2}\s+\d{2}:\d{2}:\d{2}/
 ;
 
-//TIME_OFFSET:
-//    /(\d+(y|Y)(\s+)?)?(\d+M(\s+)?)?(\d+(d|D)(\s+)?)?(\d+(h|H)(\s+)?)?(\d+m(\s+)?)?(\d+(s|S))?/
-//;
+TIME_OFFSET:
+    /(\d+(d|D)(\s+)?)?(\d+(h|H)(\s+)?)?(\d+m(\s+)?)?(\d+(s|S))?/
+;
 
 SEMICOLON: ';';
 COMMA: ',';
 COUNT: 'count';
+LAST: 'last';

@@ -21,7 +21,9 @@ log_parser = build_log_parser(log_format)
 
 def process_rdd(time, rdd):
     # we could send message to server to store this specific log
-    rdd.foreach(lambda l: print("Alarm fired by log: {0}".format(l)))
+    if rdd.count() >= 11:
+        log_list = rdd.collect()
+        print("Alarm fired at {0} by these {1} logs: {2}".format(time, len(log_list), log_list))
 
 
 if __name__ == "__main__":
@@ -40,7 +42,8 @@ if __name__ == "__main__":
                                 (l.brojka == 11 or l.brojka == 13)
 
                                 )
-    filtered_logs.foreachRDD(process_rdd)
+    window_logs = filtered_logs.window(12, 1)
+    window_logs.foreachRDD(process_rdd)
 
     # start the streaming computation
     ssc.start()

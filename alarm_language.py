@@ -6,6 +6,9 @@ from collections import OrderedDict
 from log_formatter import build_log_parser, IntDeclaration, DoubleDeclaration, StringDeclaration, \
     DateTimeDeclaration
 
+COUNT_STR = 'COUNT'
+LAST_STR = 'LAST'
+GROUP_BY_STR = 'GROUP_BY'
 
 # u akcijama je potrebno proveriti postojanje atributa
 # a takodje i njihov tip
@@ -32,7 +35,6 @@ class IRObject:
 class AlarmQuery(IRObject):
     def __init__(self, query, header=None):
         self.query = query
-        print("Mamu li ti jebem ja: %s" % header)
         self.header = header
 
     def remove_not(self):
@@ -439,12 +441,20 @@ class Header(IRObject):
 
     def semantic_analysis(self, log_parser):
         expr_dict = {}
+        count_found = False
+        last_found = False
         for expr in self.header_expressions:
             # each header expr can appear only once in header
             if expr.get_type() in expr_dict:
                 raise AttributeError("%s appears multiple times in header." % expr.get_type())
             expr.semantic_analysis(log_parser)
             expr_dict[expr.get_type()] = expr
+            if expr.get_type() == COUNT_STR:
+                count_found = True
+            elif expr.get_type() == LAST_STR:
+                last_found = True
+        if last_found and not count_found:
+            raise Exception('Last specified, but not count.')
 
     def __str__(self):
         out_str = ""
@@ -468,7 +478,7 @@ class CountExpr(HeaderExpr):
         return "count(%s)" % self.count
 
     def get_type(self):
-        return 'COUNT'
+        return COUNT_STR
 
     def semantic_analysis(self, log_parser):
         if self.count.value > 0 and isinstance(self.count, IntValue):
@@ -476,7 +486,24 @@ class CountExpr(HeaderExpr):
         raise ValueError("Count must be positive integer")
 
 
-from utils_functions import YearInterval, MonthInterval, DayInterval, HourInterval, MinuteInterval, SecondInterval, \
+class LastExpr(HeaderExpr):
+    def __init__(self, time_offset_seconds):
+        self.time_offset_seconds = time_offset_seconds
+
+    def __str__(self):
+        return "last(%ss)" % self.time_offset_seconds
+
+    def get_type(self):
+        return LAST_STR
+
+    def semantic_analysis(self, log_parser):
+        if self.time_offset_seconds <= 0:
+            raise ValueError("Last value must represents the positive number of seconds offset.")
+
+
+from utils_functions import convert_timedelta_offset_to_seconds, calculate_timedelta_offset, \
+    YearInterval, MonthInterval, DayInterval, HourInterval, \
+    MinuteInterval, SecondInterval, \
     DateTimeInterval
 
 actions = {
@@ -537,12 +564,17 @@ actions = {
     ],
     # HeaderExpr:
     #     CountExpr
+    #     | LastExpr
     # ;
     "HeaderExpr": lambda _, nodes: nodes[0],
     # CountExpr:
     #     COUNT LPAREN INT RPAREN
     # ;
     "CountExpr": lambda _, nodes: CountExpr(nodes[2]),
+    # LastExpr:
+    #     COUNT LPAREN TIME_OFFSET RPAREN
+    # ;
+    "LastExpr": lambda _, nodes: LastExpr(nodes[2]),
 
     # terminals
     "Property": lambda _, nodes: Property(nodes[0]),
@@ -568,6 +600,7 @@ actions = {
     "YEAR_MONTH_DAY_HOUR_MINUTE": lambda _, value: DatetimeValue(MinuteInterval("%s:00" % (re.sub("\s+", "T", value)))),
     "YEAR_MONTH_DAY_HOUR_MINUTE_SECOND": lambda _, value: DatetimeValue(
         SecondInterval("%s" % (re.sub("\s+", "T", value)))),
+    "TIME_OFFSET": lambda _, value: convert_timedelta_offset_to_seconds(calculate_timedelta_offset(value))
 }
 
 
@@ -624,7 +657,7 @@ def test_integration():
         </</> <brojka> </>/> </.*/>
     """
     log_str = '<11>1 2019-04-08T01:08:12+02:00 12.12.12.1 FakeWebApp - msg77 - from:192.52.223.99 "GET /recipe HTTP/1.0" 200 4923 "Mozilla/5.0 (Macintosh; U; PPC Mac OS X 10_12_6) AppleWebKit/5361 (KHTML, like Gecko) Chrome/53.0.892.0 Safari/5361 "'
-    alarm_str = 'brojka == 11 or brojka > 12; count(10)'
+    alarm_str = 'brojka == 11 or brojka > 12; count(11), last(12s)'
 
     lp = build_log_parser(log_format)
     l = lp.parse_log(log_str)
