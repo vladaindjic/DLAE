@@ -178,7 +178,7 @@ while flag:
     numpy.random.choice(resources_and_scenarios, p=[0.05, 0.1, 0.05, 0.8])(dt, logLevel, ip, byt, useragent)
 
     if increment:
-        time.sleep(1)
+        time.sleep(5)
 
 # <%s(pri)>1 %s(time stamp) %s(hostname) %s(aplication name) - %s(messageid) - %s(poruka)
 

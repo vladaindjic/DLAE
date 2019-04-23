@@ -10,6 +10,7 @@ COUNT_STR = 'COUNT'
 LAST_STR = 'LAST'
 GROUP_BY_STR = 'GROUP_BY'
 
+
 # u akcijama je potrebno proveriti postojanje atributa
 # a takodje i njihov tip
 
@@ -443,6 +444,7 @@ class Header(IRObject):
         expr_dict = {}
         count_found = False
         last_found = False
+        group_by_found = False
         for expr in self.header_expressions:
             # each header expr can appear only once in header
             if expr.get_type() in expr_dict:
@@ -453,8 +455,19 @@ class Header(IRObject):
                 count_found = True
             elif expr.get_type() == LAST_STR:
                 last_found = True
-        if last_found and not count_found:
-            raise Exception('Last specified, but not count.')
+            elif expr.get_type() == GROUP_BY_STR:
+                group_by_found = True
+        # count
+        # count, last
+        # count group_by
+        # count, last, group_by
+        header_expr_valid_combination = \
+            (count_found and not last_found and not group_by_found) \
+            or (count_found and last_found and not group_by_found) \
+            or (count_found and not last_found and group_by_found) \
+            or (count_found and last_found and group_by_found)
+        if not header_expr_valid_combination:
+            raise Exception("Bad combination of header's parameters")
 
     def __str__(self):
         out_str = ""
@@ -499,6 +512,50 @@ class LastExpr(HeaderExpr):
     def semantic_analysis(self, log_parser):
         if self.time_offset_seconds <= 0:
             raise ValueError("Last value must represents the positive number of seconds offset.")
+
+
+class GroupByExpr(HeaderExpr):
+    def __init__(self, group_by_list):
+        self.group_by_list = group_by_list
+
+    def get_type(self):
+        return GROUP_BY_STR
+
+    def __str__(self):
+        return "groupBy(%s)" % self.group_by_list
+
+    def semantic_analysis(self, log_parser):
+        self.group_by_list.semantic_analysis(log_parser)
+
+
+class GroupByList(IRObject):
+    def __init__(self, first_property=None):
+        self.properties = []
+        if first_property is not None:
+            self.add_property(first_property)
+
+    def add_property(self, new_property):
+        self.properties.append(new_property)
+        return self
+
+    def __str__(self):
+        output_str = ""
+        for prop in self.properties:
+            output_str += str(prop) + ", "
+        if output_str:
+            output_str = output_str[:-2]
+        return output_str
+
+    def semantic_analysis(self, log_parser):
+        # Check if properties are valid.
+        # Each property can be write once.
+        used_properties = {}
+        for prop in self.properties:
+            if prop.name not in log_parser.declarations:
+                raise AttributeError('Property with name %s does not exist.' % prop.name)
+            if prop.name in used_properties:
+                raise AttributeError('Property with name %s is used more than once in group by expression.' % prop.name)
+            used_properties[prop.name] = prop
 
 
 from utils_functions import convert_timedelta_offset_to_seconds, calculate_timedelta_offset, \
@@ -575,6 +632,18 @@ actions = {
     #     COUNT LPAREN TIME_OFFSET RPAREN
     # ;
     "LastExpr": lambda _, nodes: LastExpr(nodes[2]),
+    # GroupByExpr:
+    #     GROUP_BY LPAREN GroupByList RPAREN
+    # ;
+    "GroupByExpr": lambda _, nodes: GroupByExpr(nodes[2]),
+    # GroupByList:
+    #     Property
+    #     | GroupByList COMMA Property
+    # ;
+    "GroupByList": [
+        lambda _, nodes: GroupByList(nodes[0]),
+        lambda _, nodes: nodes[0].add_property(nodes[2]),
+    ],
 
     # terminals
     "Property": lambda _, nodes: Property(nodes[0]),
@@ -654,10 +723,11 @@ def test_integration():
 
     log_format = """
         brojka:=int;
-        </</> <brojka> </>/> </.*/>
+        druga_brojka:=int;
+        </</> <brojka> </>/> <druga_brojka> </.*/>
     """
     log_str = '<11>1 2019-04-08T01:08:12+02:00 12.12.12.1 FakeWebApp - msg77 - from:192.52.223.99 "GET /recipe HTTP/1.0" 200 4923 "Mozilla/5.0 (Macintosh; U; PPC Mac OS X 10_12_6) AppleWebKit/5361 (KHTML, like Gecko) Chrome/53.0.892.0 Safari/5361 "'
-    alarm_str = 'brojka == 11 or brojka > 12; count(11), last(12s)'
+    alarm_str = 'brojka == 11 or brojka > 12; count(11), last(12s), groupBy(brojka, druga_brojka)'
 
     lp = build_log_parser(log_format)
     l = lp.parse_log(log_str)
