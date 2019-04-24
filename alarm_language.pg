@@ -53,28 +53,36 @@ AtExpr:
 
 Property: KEYWORD;
 
-
 Header:
-    HeaderExpr
-    | Header COMMA HeaderExpr
-;
-
-HeaderExpr:
     CountExpr
-    | LastExpr
-    | GroupByExpr
 ;
 
 CountExpr:
-    COUNT LPAREN INT RPAREN
+    COUNT LPAREN CountExprParams RPAREN
 ;
 
-LastExpr:
-    LAST LPAREN TIME_OFFSET RPAREN
+CountExprParams:
+    CountParam
+    | CountParam COMMA CountKeywordParams
 ;
 
-GroupByExpr:
-    GROUP_BY LPAREN GroupByList RPAREN
+CountParam:
+    INT
+;
+
+CountKeywordParams:
+    LastParam
+    | GroupByParam
+    | LastParam COMMA GroupByParam
+    | GroupByParam COMMA LastParam
+;
+
+LastParam:
+    LAST assign_op TIME_OFFSET
+;
+
+GroupByParam:
+    GROUP_BY assign_op LSQUARE GroupByList RSQUARE
 ;
 
 GroupByList:
@@ -124,6 +132,7 @@ ne_op: '!=';
 at_op: '@';
 last_op: '~';
 
+assign_op: '=';
 
 // Lexer
 KEYWORD: /\w+/;
@@ -148,6 +157,8 @@ REG_EXPR:
 
 LPAREN: '(';
 RPAREN: ')';
+LSQUARE: '[';
+RSQUARE: ']';
 
 HASH: '#';
 

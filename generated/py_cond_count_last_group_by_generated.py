@@ -11,15 +11,15 @@ from log_formatter import build_log_parser
 log_format = """
 
         
-        brojka:=int;
-        druga_brojka:=int;
-        
-        
-        /</ brojka />/ druga_brojka </.*/>
-           
-    """
+        priority:=int;
+        version:=int;
+        _rest_of_line:=/.*/;
+        _lt:=/</;
+        _gt:=/>/;
+        _lt priority _gt version _rest_of_line
+    
 
-    # <15>1 asdlkaslkdjf
+    """
 log_parser = build_log_parser(log_format)
 
 
@@ -30,7 +30,7 @@ def extract_log_list_from_result_iterable(log_res_it):
 def process_rdd_element(rdd_el, time):
     window_group_key, log_res_it = rdd_el
     log_list = extract_log_list_from_result_iterable(log_res_it)
-    if len(log_list) >= 15:
+    if len(log_list) >= 11:
         print("Alarm fired at {0} by these group {1} which counts {2} logs: {3}".format(time, window_group_key,
                                                                                         len(log_list), log_list))
 
@@ -52,11 +52,11 @@ if __name__ == "__main__":
     logs = lines.map(lambda log_line: log_parser.parse_log(log_line.strip()))
     filtered_logs = logs.filter(lambda l:
 
-                                ((l.brojka == 11 or l.brojka == 13) and l.druga_brojka == 1)
+                                ((l.priority == 11 or l.priority == 13) and l.version == 1)
 
                                 )
 
-    pairs = filtered_logs.map(lambda l: ("{0}_{1}".format(l.brojka, l.druga_brojka), l))
+    pairs = filtered_logs.map(lambda l: ("{0}_{1}".format(l.priority, l.version), l))
     window_groups = pairs.groupByKeyAndWindow(33, 1)
     window_groups.foreachRDD(process_rdd)
 

@@ -16,11 +16,15 @@ PY_COND_COUNT_GROUP_BY_GENERATED_PATH = os.path.join(GENERATED_PATH, 'py_cond_co
 PY_COND_COUNT_LAST_GROUP_BY_GENERATED_PATH = os.path.join(GENERATED_PATH, 'py_cond_count_last_group_by_generated.py')
 
 log_format_str = """
-        brojka:=int;
-        druga_brojka:=int;
-        </</> <brojka> </>/> <druga_brojka> </.*/>
+        priority:=int;
+        version:=int;
+        _rest_of_line:=/.*/;
+        _lt:=/</;
+        _gt:=/>/;
+        _lt priority _gt version _rest_of_line
     """
-alarm_str = 'not(brojka != 11 and brojka != 13) and druga_brojka==1; count(15, groupBy=[brojka, druga_brojka], last=33s ) '
+alarm_str = 'not(priority != 11 and priority != 13) and version==1; count(11, groupBy=[priority, version], last=33s)'
+# alarm_str = 'not(brojka != 11 and brojka != 13) and druga_brojka==1; count(11, groupBy=[brojka, druga_brojka], last=33s)'
 
 ENUM_PY_COND = 'PY_COND'
 ENUM_PY_COND_COUNT = 'PY_COND_COUNT'
@@ -36,26 +40,30 @@ GROUP_BY_STR = 'GROUP_BY'
 def find_proper_template_type(alarm_query):
     if alarm_query.header is None:
         return ENUM_PY_COND
-    count_expr_exist = False
-    last_expr_exist = False
-    group_by_expr_exist = False
-    for expr in alarm_query.header.header_expressions:
-        if expr.get_type() == COUNT_STR:
-            count_expr_exist = True
-        elif expr.get_type() == LAST_STR:
-            last_expr_exist = True
-        elif expr.get_type() == GROUP_BY_STR:
-            group_by_expr_exist = True
-        else:
-            raise TypeError('Unknown header expression type')
-    if count_expr_exist and not last_expr_exist and not group_by_expr_exist:
+    count_expr = alarm_query.header.count_expr
+    # for current implementation, this should be always true
+    count_expr_exist = count_expr is not None
+    if not count_expr_exist:
+        return ENUM_PY_COND
+
+    count_keyword_params = alarm_query.header.count_expr.count_expr_params.count_keyword_params
+    # only count value is specified
+    if not count_keyword_params:
         return ENUM_PY_COND_COUNT
-    elif count_expr_exist and last_expr_exist and not group_by_expr_exist:
-        return ENUM_PY_COND_COUNT_LAST
-    elif count_expr_exist and not last_expr_exist and group_by_expr_exist:
-        return ENUM_PY_COND_COUNT_GROUP_BY
-    elif count_expr_exist and last_expr_exist and group_by_expr_exist:
+
+    # check if last is specified
+    last_param = count_keyword_params.last_param
+    last_param_exist = last_param is not None
+    # check if groupBy is specified
+    group_by_param = count_keyword_params.group_by_param
+    group_by_param_exist = group_by_param is not None
+
+    if last_param_exist and group_by_param_exist:
         return ENUM_PY_COND_COUNT_LAST_GROUP_BY
+    elif last_param_exist:
+        return ENUM_PY_COND_COUNT_LAST
+    elif group_by_param_exist:
+        return ENUM_PY_COND_COUNT_GROUP_BY
     else:
         raise ValueError('Still not implemented case scenarios')
 
@@ -65,19 +73,14 @@ def get_py_cond_str_template_tupple(log_format_grammar, alarm_query):
 
 
 def get_py_cond_count_str_template_tupple(log_format_grammar, alarm_query):
-    count_value = alarm_query.header.header_expressions[0].count.value
+    count_value = alarm_query.header.count_expr.count_expr_params.count_param.count.value
     return log_format_grammar, count_value, count_value, alarm_query.python_condition()
 
 
 def get_py_cond_count_last_str_template_tupple(log_format_grammar, alarm_query):
     # count_value = alarm_query.header.header_expressions[0].count.value
-    count_value = 0
-    last_second_value = 0
-    for expr in alarm_query.header.header_expressions:
-        if expr.get_type() == COUNT_STR:
-            count_value = expr.count.value
-        elif expr.get_type() == LAST_STR:
-            last_second_value = expr.time_offset_seconds
+    count_value = alarm_query.header.count_expr.count_expr_params.count_param.count.value
+    last_second_value = alarm_query.header.count_expr.count_expr_params.count_keyword_params.last_param.time_offset_seconds
     return log_format_grammar, count_value, alarm_query.python_condition(), last_second_value
 
 
@@ -97,29 +100,17 @@ def extract_key_template_and_key_parts_from_group_by_list(group_by_list):
 
 
 def get_py_cond_count_group_by_str_template_tupple(log_format_grammar, alarm_query):
-    count_value = 0
-    key_template = ""
-    key_parts = ""
-    for expr in alarm_query.header.header_expressions:
-        if expr.get_type() == COUNT_STR:
-            count_value = expr.count.value
-        elif expr.get_type() == GROUP_BY_STR:
-            key_template, key_parts = extract_key_template_and_key_parts_from_group_by_list(expr.group_by_list)
+    count_value = alarm_query.header.count_expr.count_expr_params.count_param.count.value
+    group_by_list = alarm_query.header.count_expr.count_expr_params.count_keyword_params.group_by_param.group_by_list
+    key_template, key_parts = extract_key_template_and_key_parts_from_group_by_list(group_by_list)
     return log_format_grammar, count_value, count_value, alarm_query.python_condition(), key_template, key_parts
 
 
 def get_py_cond_count_last_group_by_str_template_tupple(log_format_grammar, alarm_query):
-    count_value = 0
-    last_second_value = 0
-    key_template = ""
-    key_parts = ""
-    for expr in alarm_query.header.header_expressions:
-        if expr.get_type() == COUNT_STR:
-            count_value = expr.count.value
-        elif expr.get_type() == LAST_STR:
-            last_second_value = expr.time_offset_seconds
-        elif expr.get_type() == GROUP_BY_STR:
-            key_template, key_parts = extract_key_template_and_key_parts_from_group_by_list(expr.group_by_list)
+    count_value = alarm_query.header.count_expr.count_expr_params.count_param.count.value
+    last_second_value = alarm_query.header.count_expr.count_expr_params.count_keyword_params.last_param.time_offset_seconds
+    group_by_list = alarm_query.header.count_expr.count_expr_params.count_keyword_params.group_by_param.group_by_list
+    key_template, key_parts = extract_key_template_and_key_parts_from_group_by_list(group_by_list)
     return log_format_grammar, count_value, alarm_query.python_condition(), key_template, key_parts, last_second_value
 
 
