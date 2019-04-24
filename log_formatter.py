@@ -12,6 +12,7 @@ INT_TYPE = "INT"
 DOUBLE_TYPE = "DOUBLE"
 STRING_TYPE = "STRING"
 DATE_TIME_TYPE = "DATE_TIME"
+SEPARATOR_TYPE = "SEPARATOR"
 
 
 class Log:
@@ -30,18 +31,22 @@ class LogParser:
         unmatched = text
         log = Log()
         for el in self._elements:
-            if isinstance(el.content, Regex):
-                matched, unmatched = self._match_regex(el.content, unmatched, text)
+            if isinstance(el, Regex):
+                matched, unmatched = self._match_regex(el, unmatched, text)
             else:
-                if isinstance(el.content, Identifier):
-                    declaration = self.declarations[el.content.id]
-                elif isinstance(el.content, Declaration):
-                    declaration = el.content
+                if isinstance(el, Identifier):
+                    declaration = self.declarations[el.id]
+                elif isinstance(el, Declaration):
+                    declaration = el
                 else:
                     raise ValueError('This should not happen')
 
                 identifier, datatype, regex = declaration.identifier, declaration.type, declaration.regex
                 matched, unmatched = self._match_regex(regex, unmatched, text)
+
+                # if the declaration is of type SeparatorDeclaration, we don't need to extract value
+                if isinstance(declaration, SeparatorDeclaration):
+                    continue
 
                 value = self._create_value_for_type(matched, datatype)
                 # FIXME: bad, but easy way to add attribute to object
@@ -90,7 +95,11 @@ def create_regex_object(regex, default_regex_pattern):
     return regex
 
 
-class Declaration:
+class Element:
+    pass
+
+
+class Declaration(Element):
     def __init__(self, identifier, datatype, regex):
         self.identifier = identifier
         self.type = datatype
@@ -98,24 +107,34 @@ class Declaration:
         self.regex = regex
 
 
-class IntDeclaration(Declaration):
+class PropertyDeclaration(Declaration):
+    def __init__(self, identifier, datatype, regex):
+        super().__init__(identifier, datatype, regex)
+
+
+class IntDeclaration(PropertyDeclaration):
     def __init__(self, identifier, regex=INT_REGEX_PATTERN):
         super().__init__(identifier, INT_TYPE, create_regex_object(regex, INT_REGEX_PATTERN))
 
 
-class DoubleDeclaration(Declaration):
+class DoubleDeclaration(PropertyDeclaration):
     def __init__(self, identifier, regex=DOUBLE_REGEX_PATTERN):
         super().__init__(identifier, DOUBLE_TYPE, create_regex_object(regex, DOUBLE_REGEX_PATTERN))
 
 
-class StringDeclaration(Declaration):
+class StringDeclaration(PropertyDeclaration):
     def __init__(self, identifier, regex=STRING_REGEX_PATTERN):
         super().__init__(identifier, STRING_TYPE, create_regex_object(regex, STRING_REGEX_PATTERN))
 
 
-class DateTimeDeclaration(Declaration):
+class DateTimeDeclaration(PropertyDeclaration):
     def __init__(self, identifier, regex=DATE_TIME_REGEX_PATTERN):
         super().__init__(identifier, DATE_TIME_TYPE, create_regex_object(regex, DATE_TIME_REGEX_PATTERN))
+
+
+class SeparatorDeclaration(Declaration):
+    def __init__(self, sep_identifier, regex):
+        super().__init__(sep_identifier, SEPARATOR_TYPE, regex)
 
 
 class LogFormat:
@@ -136,15 +155,20 @@ class LogFormat:
         # each element should have unique id (FIXME: should this be fixed)
         # each id in declarations places in body should be unique too
         for el in self.body:
-            if isinstance(el.content, Declaration):
-                declaration = el.content
+            if isinstance(el, Declaration):
+                declaration = el
                 if declaration.identifier.id in decl_dict or declaration.identifier.id in body_decl_dict:
                     raise ValueError("Declaration placed in body for id: %s is not unique" % declaration.identifier.id)
-                body_decl_dict[declaration.identifier.id] = declaration
-            elif isinstance(el.content, Regex):
+                if isinstance(declaration, PropertyDeclaration):
+                    body_decl_dict[declaration.identifier.id] = declaration
+                elif isinstance(declaration, SeparatorDeclaration):
+                    decl_dict[declaration.identifier.id] = declaration
+                else:
+                    raise ValueError('This declaration %s should inherit Declaration' % declaration)
+            elif isinstance(el, Regex):
                 pass
-            elif isinstance(el.content, Identifier):
-                identifier = el.content
+            elif isinstance(el, PropertyIdentifier):
+                identifier = el
                 # element id should be unique in body
                 if identifier.id in body_decl_dict:
                     raise ValueError('Id: %s is used in declaration placed in body.' % identifier.id)
@@ -153,8 +177,13 @@ class LogFormat:
                 elif identifier.id in id_set:
                     raise ValueError('Element with id: %s is put multiple times in body.' % identifier.id)
                 id_set.add(identifier.id)
+            elif isinstance(el, SeparatorIdentifier):
+                sep_identifier = el
+                # separator_identifier must be definied
+                if sep_identifier.id not in decl_dict:
+                    raise ValueError('Separator Id: %s is not declared.' % sep_identifier.id)
             else:
-                raise TypeError('Wrong value of body element')
+                raise TypeError('Wrong value of body element %s' % el)
 
         # merge dicts with declarations
         for k in body_decl_dict:
@@ -195,22 +224,27 @@ class Body:
         #     yield i
 
 
-class Element:
-    def __init__(self, content):
-        self.content = content
-
-
-class Identifier:
+class Identifier(Element):
     def __init__(self, identifier):
         self.id = identifier
 
 
-class Regex:
+class PropertyIdentifier(Identifier):
+    def __init__(self, identifier):
+        super().__init__(identifier)
+
+
+class SeparatorIdentifier(Identifier):
+    def __init__(self, sep_identifier):
+        super().__init__(sep_identifier)
+
+
+class Regex(Element):
     def __init__(self, regex):
         self.regex = re.compile(regex[1:-1])
 
 
-def create_declaration(identifier, rhsdecl_tupple):
+def create_property_declaration(identifier, rhsdecl_tupple):
     datatype, regex = rhsdecl_tupple
     if datatype == INT_TYPE:
         return IntDeclaration(identifier, regex)
@@ -254,9 +288,19 @@ actions = {
     # ;
     "Declaration": lambda _, nodes: nodes[0],
     # Decl:
+    #     PropDecl
+    #     | SepDecl
+    # ;
+    "Decl": lambda _, nodes: nodes[0],
+
+    # PropDecl:
     #     ID ASSIGN RHSDecl
     # ;
-    "Decl": lambda _, nodes: create_declaration(nodes[0], nodes[2]),
+    "PropDecl": lambda _, nodes: create_property_declaration(nodes[0], nodes[2]),
+    # SepDecl:
+    #     SEP_ID ASSIGN REGEX
+    # ;
+    "SepDecl": lambda _, nodes: SeparatorDeclaration(nodes[0], nodes[2]),
     # RHSDecl:
     #     DataType
     #     | DataType LPAREN REGEX RPAREN
@@ -266,19 +310,12 @@ actions = {
         lambda _, nodes: (nodes[0], nodes[2])
     ],
     # Element:
-    #     LT Content GT
-    # ;
-    "Element": lambda _, nodes: Element(nodes[1]),
-    # Content:
     #     ID
+    #     | SEP_ID
     #     | Decl
     #     | REGEX
     # ;
-    "Content": [
-        lambda _, nodes: nodes[0],
-        lambda _, nodes: nodes[0],
-        lambda _, nodes: nodes[0],
-    ],
+    "Element": lambda _, nodes: nodes[0],  # I think that we don't need class for Element
     # DataType:
     #     INT
     #     | DOUBLE
@@ -293,8 +330,16 @@ actions = {
     ],
 
     # terminals
-    # ID: /\w+/;
-    "ID": lambda _, value: Identifier(value),
+    # ID:
+    #     PROP_ID
+    #     | SEP_ID
+    # ;
+    "ID": lambda _, nodes: nodes[0],  # I think that we don't need class for Element
+
+    # ID: /[a-zA-Z]\w*/;
+    "PROP_ID": lambda _, value: PropertyIdentifier(value),
+    # SEP_ID: /_\w*/;
+    "SEP_ID": lambda _, value: SeparatorIdentifier(value),
     # ASSIGN: ':=';
     # LPAREN: '(';
     # RPAREN: ')';
@@ -320,9 +365,13 @@ primer = """
     a:=double; 
     b:=double;
     c:=datetime(/\d{2}\.\d{2}\.\d{4}/);
-    <a> </,\s+/> <b> </,\s+/> <c> </;\s+/> <p> </\s+/> <m:=int>
+    e:=int;
+    _comma:=/\s*,\s*/;
+    
+    a _comma b _comma c _comma p _comma m:=int _dot:=/\s*\.\s*/ n:=int _dot asd:=int _dot /aaa/ e
+    
     """
-log = '3.1, -3.5, 13.03.1905;   3000 100'
+log = '1.1, 2.2 , 20.02.1995, 10,  +123 . 100. 1001 .  aaa111'
 
 
 # primer = '''
@@ -346,6 +395,7 @@ def main():
     print(l.c)
     print(l.p)
     print(l.m)
+    print(l.__dict__)
 
 
 if __name__ == '__main__':

@@ -18,7 +18,16 @@ Declaration:
 ;
 
 Decl:
-    ID ASSIGN RHSDecl
+    PropDecl
+    | SepDecl
+;
+
+PropDecl:
+    PROP_ID ASSIGN RHSDecl
+;
+
+SepDecl:
+    SEP_ID ASSIGN REGEX
 ;
 
 RHSDecl:
@@ -34,23 +43,23 @@ DataType:
 ;
 
 Element:
-    LT Content GT
-;
-
-Content:
     ID
     | Decl
     | REGEX
 ;
 
+ID:
+    PROP_ID
+    | SEP_ID
+;
+
 terminals
-ID: /\w+/;
+PROP_ID: /[a-zA-Z]\w*/;
+SEP_ID: /_\w*/;
 ASSIGN: ':=' ;
 LPAREN: '(' ;
 RPAREN: ')' ;
 REGEX: /\/((\\\/)|[^\/])*\// ;
-LT: '<' ;
-GT: '>' ;
 KEYWORD: /\w+/;
 INT: 'int';
 DOUBLE: 'double';

@@ -13,10 +13,13 @@ log_format = """
         
         brojka:=int;
         druga_brojka:=int;
-        </</> <brojka> </>/> <druga_brojka> </.*/>
-    
-
+        
+        
+        /</ brojka />/ druga_brojka </.*/>
+           
     """
+
+    # <15>1 asdlkaslkdjf
 log_parser = build_log_parser(log_format)
 
 

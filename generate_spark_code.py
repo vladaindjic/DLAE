@@ -20,7 +20,7 @@ log_format_str = """
         druga_brojka:=int;
         </</> <brojka> </>/> <druga_brojka> </.*/>
     """
-alarm_str = 'not(brojka != 11 and brojka != 13) and druga_brojka==1; count(15), groupBy(brojka, druga_brojka), last(33s)'
+alarm_str = 'not(brojka != 11 and brojka != 13) and druga_brojka==1; count(15, groupBy=[brojka, druga_brojka], last=33s ) '
 
 ENUM_PY_COND = 'PY_COND'
 ENUM_PY_COND_COUNT = 'PY_COND_COUNT'
