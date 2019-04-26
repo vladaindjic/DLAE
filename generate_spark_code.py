@@ -16,15 +16,21 @@ PY_COND_COUNT_GROUP_BY_GENERATED_PATH = os.path.join(GENERATED_PATH, 'py_cond_co
 PY_COND_COUNT_LAST_GROUP_BY_GENERATED_PATH = os.path.join(GENERATED_PATH, 'py_cond_count_last_group_by_generated.py')
 
 log_format_str = """
-        priority:=int;
-        version:=int;
-        _rest_of_line:=/.*/;
-        _lt:=/</;
-        _gt:=/>/;
-        _lt priority _gt version _rest_of_line
-    """
-alarm_str = 'not(priority != 11 and priority != 13) and version==1; count(11, groupBy=[priority, version], last=33s)'
-# alarm_str = 'not(brojka != 11 and brojka != 13) and druga_brojka==1; count(11, groupBy=[brojka, druga_brojka], last=33s)'
+    priority        := int;
+    version         := int(/\d/);
+    timestamp       := datetime(/\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\+\d{2}\:\d{2}/);
+    _ws             := /\s+/;
+    server_id       := string(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/);
+    app_name        := string(/\w+/);
+    _dash           := /\s+\-\s+/;
+    msg_id          := string(/msg\d+/);
+    workstation_id  := string(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/);
+    
+    /</ priority />/ version _ws timestamp _ws server_id _ws app_name _dash msg_id _dash _from:=/from:/ workstation_id _ws msg:=string(/.*/)
+
+"""
+
+alarm_str = 'version == 1 and (priority > 10 and priority <= 14) or not timestamp@#2018#; count(10, groupBy=[server_id, workstation_id], last=1m30s)'
 
 ENUM_PY_COND = 'PY_COND'
 ENUM_PY_COND_COUNT = 'PY_COND_COUNT'

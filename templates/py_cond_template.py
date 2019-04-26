@@ -7,6 +7,7 @@ from pyspark.streaming import StreamingContext
 from pyspark.streaming.kafka import KafkaUtils
 
 from log_formatter import build_log_parser
+import dateutil.parser as date_parser
 
 log_format = """
 

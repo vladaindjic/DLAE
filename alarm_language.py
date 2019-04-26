@@ -758,6 +758,22 @@ def test_integration():
     """
     alarm_str = "not(priority != 11 and priority != 13) and version==1"
 
+    log_format = """
+        priority        := int;
+        version         := int(/\d/);
+        timestamp       := datetime(/\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\+\d{2}\:\d{2}/);
+        _ws             := /\s+/;
+        server_id       := string(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/);
+        app_name        := string(/\w+/);
+        _dash           := /\s+\-\s+/;
+        msg_id          := string(/msg\d+/);
+        workstation_id  := string(/\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}/);
+        
+        /</ priority />/ version _ws timestamp _ws server_id _ws app_name _dash msg_id _dash _from:=/from:/ workstation_id _ws msg:=string(/.*/)
+
+    """
+
+    alarm_str = "version == 1 and (priority > 10 and priority <= 14) or not timestamp@#2018#; count(10, groupBy=[server_id, workstation_id], last=1m30s) "
 
     lp = build_log_parser(log_format)
     l = lp.parse_log(log_str)

@@ -76,7 +76,11 @@ class LogParser:
         elif datatype == STRING_TYPE:
             return str(matched_str)
         elif datatype == DATE_TIME_TYPE:
-            return date_parser.parse(matched_str)
+            datetime_value = date_parser.parse(matched_str)
+            # FIXME: for now, we will remove timezone so that we don't have problems
+            # with naive and timezone aware datetime objects
+            datetime_value = datetime_value.replace(tzinfo=None)
+            return datetime_value
         else:
             raise TypeError('Wrong datetype: %s' % datatype)
 
