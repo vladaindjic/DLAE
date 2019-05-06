@@ -2,9 +2,9 @@
 
 ## Realtime logs and alarms analytics
 An average informational system is usually built of lots of workstations and couple of servers.
-If the machines are connected to the internet, then they represent the potential threat for hacker attack.
+If the machines are connected to the internet, then they represent the potential threat for hacker attacks.
 In order to prevent and detect security breaches in informational system,
- each workstation and server generate a tons of logs.
+ each workstation and server generate tons of logs.
 These logs should be processed in realtime, so that reaction to threats could be made on time.
 
 This project propose a system that can be used for realtime logs monitoring and alarms detection.
@@ -52,7 +52,7 @@ Each log format specification contains these sections:
 - optional declaration section (lines 5-13) - can contain declarations of log elements and separators
 - mandatory log format definition section (line 16) - can contain regular expressions, log element and separator 
 identifiers, log element and separator declarations. Separator identifiers can be used multiple times, but log element 
-identifier and log element declarations must be unique.
+identifiers and log element declarations must be unique.
 
 By using `parglare` `python` library, format specification will be parsed and the parser for specified log format 
 will be generated. For the example above, 
