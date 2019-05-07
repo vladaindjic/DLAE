@@ -36,7 +36,6 @@ RelExpr:
 
 TimestampExpr:
     AtExpr
-    //| LastExpr
 ;
 
 RegExpr:
@@ -46,10 +45,6 @@ RegExpr:
 AtExpr:
     Property at_op Datetime
 ;
-
-//LastExpr:
-//    Property last_op TIME_OFFSET
-//;
 
 Property: KEYWORD;
 
@@ -115,7 +110,7 @@ DatetimeValue:
 rel_op: eq_op | ne_op | lt_op | lte_op | gt_op | gte_op;
 reg_expr_op: eq_op | ne_op;
 
-// Terminalni simboli
+// Terminal symbols
 terminals
 
 and_op: 'and' ;
@@ -141,15 +136,12 @@ INT: /[+-]?\d+/ ;
 
 DOUBLE: /[+-]?((\d+\.\d*)|(\d*\.\d+))/;
 
-// Old version /\".*\"/
-// Middle version/\"[^\"]*\"/    // FIXME: find better solution for this
-// FIXME: check if this is now the right version
+// FIXME: check if this is fine regex for strings
 STRING:
     /\"((\\\")|[^\"])*\"/
 ;
 
-// Old version /\/.*\//
-// Middle version /\/[^\/]*\//   // FIXME: find better solution for this
+// FIXME: check if this is fine regex for regular expression in our DSL
 REG_EXPR:
     /\/((\\\/)|[^\/])*\//
 ;

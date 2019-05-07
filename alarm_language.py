@@ -183,7 +183,6 @@ class RelExpr(AtomicExpr):
             raise TypeError("Wrong type of log property: %s" % property_name)
 
 
-# FIXME: see if this is needed at all
 class RegExpr(AtomicExpr):
     def __init__(self, rel_expr):
         self.rel_expr = rel_expr
@@ -549,7 +548,7 @@ class GroupByList(IRObject):
 
     def semantic_analysis(self, log_parser):
         # Check if properties are valid.
-        # Each property can be write once.
+        # Each property can be written once.
         used_properties = {}
         for prop in self.properties:
             if prop.name not in log_parser.declarations:

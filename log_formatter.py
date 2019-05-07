@@ -94,7 +94,7 @@ def create_regex_object(regex, default_regex_pattern):
     :return:
     """
     if regex is None:
-        # slashes are added, beacuse constructor of Regex class will remove threm
+        # slashes are added, beacuse constructor of Regex class will remove them
         return Regex('/' + default_regex_pattern + '/')
     return regex
 
