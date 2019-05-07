@@ -138,7 +138,7 @@ python generate_spark_code.py
 # ################## Localhost
 # On your local machine, run kafka producer and log_generator.py script
 python producer.py
-python log_generator
+python log_generator.py
 
 
 # return back to spark-master container and run next command to start spark streaming
